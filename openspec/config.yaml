@@ -1,0 +1,59 @@
+schema: spec-driven
+
+context: |
+  Language: ja
+  All artifacts must be written in ja.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+
+  Project: 書籍・著者管理 API を NestJS で実装する。
+  問い: (1) Laravel の設計は Laravel の外でも依存の向きを保ったまま再現できるか
+        (2) 各レイヤーの README を人と AI の開発の起点にする進め方が回るか。
+  NestJS は DI コンテナを持つので、テーマは「Laravel の構成にどこまで寄せられるか」。
+  ルートの README.md が仕様の原典。
+  Stack: Node.js LTS / NestJS (Express) / class-validator / TypeORM / SQLite (better-sqlite3)
+         / @nestjs/jwt (HS256) / bcrypt / @nestjs/config / Jest + supertest
+  Layers: http (controllers, requests, resources, guards, filters) → useCases / services
+          → domain (外部ライブラリ非依存) ← infrastructure (TypeORM)
+  エラーレスポンスは Laravel 形式（{ message } / 422 は { message, errors }）。
+
+# 成果物ごとの書き方ルール（openspec instructions がこのルールを返す）
+# 詳しい説明は .claude/references/openspec-doc.md
+rules:
+  proposal:
+    - "What Changes には、変えないもの（範囲外）も書く。API の互換性を壊す変更は **BREAKING** と書く"
+    - "Capabilities で既存の要件が変わらない場合は、なぜ変わらないかを一言添える"
+    - "Impact には、変わるディレクトリ、API の互換性（既存の spec・クライアントとの差）、依存パッケージ、DB スキーマ（マイグレーションの有無）を書く"
+  specs:
+    - "シナリオはそのままテストケースの候補になるように書く。目安は 1 要件に 2〜5 シナリオ、1 capability で 10〜25 シナリオ。意味のないシナリオで水増ししない"
+    - "要件は 1 要件 1 振る舞いに分け、おおむね「レスポンスの形 → 取得 → 作成・更新・削除 → 入力検証 → 認証・認可 → 他の機能との関係 → 対象外」の順に並べる"
+    - "境目の値は対で書く（name 100 文字と 101 文字、password 8 文字と 7 文字、price 1 と 0、有効期限の直前と直後）。0 件・1 件・複数も当てる"
+    - "認証の状態（トークンなし・署名不正・期限切れ・ユーザー削除済み・一般ユーザー・管理者）、存在の状態（存在する・存在しない・論理削除済み・ID が数値でない）、他のリソースとの関係（参照先なし・一意性の衝突・削除の波及）の観点を当てる"
+    - "パスワードや例外の詳細など、漏らしてはいけない値がレスポンスに出ないことをシナリオで確かめる"
+    - "WHEN／THEN には具体的な値を書き、THEN は観察できる結果（ステータスコード・ボディのキーと値・その後の API の結果）だけにする。「正しく処理される」のような値の無い THEN は書かない"
+    - "シナリオ名は短い名詞句にする（「上限ちょうど」「トークンなし」「論理削除済み」）"
+    - "対象外にしたことでうっかり変えそうな挙動は、「変わらない」ことをシナリオで確かめる"
+    - "要件の本文は 500 字以内。SHALL／MUST／MUST NOT は英語のまま「〜しなければならない（SHALL）」の形で入れる"
+    - "エンドポイント・JSON のキー・ステータス・エラー文言は書いてよい。クラス名・ファイル名・ライブラリ名などの実装の言葉は spec に書かない（design に書く）"
+    - "既存の要件を変えるときは、要件のブロックを丸ごと写して直す（MODIFIED）"
+  design:
+    - "Context には、判断に効く今の作りと README との関係（従う節・外れる点）を書く"
+    - "Decisions は「### D1. 決めたこと」の形で番号を振り、本文に理由と代替案（採らなかった案と、その理由）を書く"
+    - "レイヤーの責務（domain は外部ライブラリ非依存、UseCase は HTTP を知らない、例外 → HTTP はフィルタで一括）から外れる判断は理由を書く"
+    - "Risks は「[リスク] → 対策」の形で書く"
+  tasks:
+    - "各タスクに確かめ方を書く（npm run test:feature / test:unit の該当ファイル、npm run build / lint、npm run db:* の結果、curl で見ること）"
+    - "テストと、ディレクトリの README.md の更新は、それを必要とするグループの中に置き、最後のグループに寄せない"
+    - "README から外れる判断をしたら、README を直すタスクを入れる"
+    - "実際に起動して curl で確かめる結合確認は最後のグループに置く"
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing

@@ -43,7 +43,9 @@ NestJS は Laravel と同じく **DI コンテナ・ミドルウェア（Guard�
 | Auth | JWT（`@nestjs/jwt`, HS256）+ リフレッシュトークン |
 | Password | bcrypt |
 | Config | `@nestjs/config`（`.env`） |
-| Test | Jest + supertest（NestJS 標準） |
+| Module | ESM（`"type": "module"`。相対 import は `./foo.js` と拡張子まで書く） |
+| Test | Vitest + supertest |
+| Lint / Format | oxlint / Prettier |
 
 ### ORM に TypeORM を選ぶ理由
 
@@ -51,6 +53,10 @@ NestJS は Laravel と同じく **DI コンテナ・ミドルウェア（Guard�
 - `timestamps`（`@CreateDateColumn` / `@UpdateDateColumn`）と `SoftDeletes`（`@DeleteDateColumn` + `softDelete()`）が標準である
 - マイグレーションをクラスで書ける（`up()` / `down()`）。Laravel のマイグレーションとほぼ同じ形になる
 - NestJS 公式ドキュメントで扱われている
+
+### ESM・Vitest・oxlint を使う理由
+
+NestJS 12 の `nest new` が作る雛形の既定（ESM・Vitest・oxlint）をそのまま使う。フレームワークの標準に乗っておけば、`nest g` の生成物やドキュメントと食い違わない。Vitest は `describe` / `it` / `expect` が Jest と同じで、デコレータのメタデータも出力するので、型による DI もテストでそのまま解決される。
 
 > Prisma や Drizzle でも作れる。Repository パターンで infrastructure 層に閉じ込めるので、後から差し替えても domain / useCases には影響しない。
 
@@ -152,6 +158,7 @@ src/
     token.ts                      ← リフレッシュトークン生成・有効期限
   database/
     data-source.ts                ← TypeORM CLI 用 DataSource
+    entities.ts                   ← Entity クラスの配列（DatabaseModule と data-source.ts が使う）
     migrations/
       index.ts                    ← マイグレーションクラスの配列をエクスポート
       1700000000001-create-authors-table.ts
@@ -162,12 +169,13 @@ src/
       database.seeder.ts
       run.ts
 test/
-  setup-env.ts                    ← テスト用環境変数
+  setup-env.ts                    ← テスト用環境変数（vitest.config.ts の setupFiles）
   helpers.ts                      ← createTestApp / seedAdminUser / loginAsAdmin など
   feature/                        ← tests/Feature
     auth.e2e-spec.ts / profile.e2e-spec.ts / authors.e2e-spec.ts / books.e2e-spec.ts / users.e2e-spec.ts
     guards.e2e-spec.ts
     errors.e2e-spec.ts            ← エラーレスポンスの形（未定義ルート・不正な JSON・500 など）
+    database.e2e-spec.ts          ← npm run db:* と起動時の設定（CLI と dist/main.js を実際に起動する）
   unit/                           ← tests/Unit
     requests/  auth.spec.ts / authors.spec.ts / books.spec.ts / profile.spec.ts / users.spec.ts
     filters/   validation-exception.factory.spec.ts
@@ -541,8 +549,8 @@ export class AuthorNotFoundError extends DomainError {}
 | Module | 中身 |
 |---|---|
 | `DatabaseModule` | `TypeOrmModule.forRootAsync()`（`ConfigService` から DB 設定を読む） |
-| `UsersModule` | `UserRepository` のバインド、Users の UseCase、`UsersController`。`UserRepository` を export（Guard が使う） |
-| `AuthModule` | `JwtModule.registerAsync()`、`RefreshTokenRepository` のバインド、Auth の UseCase、`AuthController`。`JwtAuthGuard` を export |
+| `UsersModule` | `UserRepository`・`RefreshTokenRepository` のバインド、Users の UseCase、`UsersController`。`UserRepository`（Guard が使う）と `RefreshTokenRepository`（Auth の UseCase が使う）を export |
+| `AuthModule` | `JwtModule.registerAsync({ global: true })`、Auth の UseCase、`AuthController`。`UsersModule` を import |
 | `ProfileModule` | Profile の Service、`ProfileController` |
 | `AuthorsModule` | `AuthorRepository` のバインド（export）、Authors の UseCase、`AuthorsController` |
 | `BooksModule` | `BookRepository` のバインド、Books の UseCase、`BooksController` |
@@ -749,7 +757,7 @@ export class CreateBooksTable1700000000002 implements MigrationInterface {
 }
 ```
 
-- `migrations/index.ts` でクラスの配列をエクスポートし、`data-source.ts` とアプリ・テストの全部がこの配列を使う。glob（`'dist/**/*.js'` など）で読み込むと、Jest 実行時と本番実行時でパスが変わって壊れやすいため
+- `migrations/index.ts` でクラスの配列をエクスポートし、`data-source.ts` とアプリ・テストの全部がこの配列を使う。glob（`'dist/**/*.js'` など）で読み込むと、テスト実行時（ts）と本番・CLI 実行時（dist の js）でパスが変わって壊れやすいため
 - アプリ本体の TypeORM 設定は `synchronize: false`。スキーマ変更は必ずマイグレーションで行う
 
 | Laravel | 本プロジェクト |
@@ -846,6 +854,7 @@ describe('POST /api/books', () => {
 | `users.e2e-spec.ts` | 一覧 → 200・パスワードを含まない／個別 → 200／404／管理者が更新 → 200／一般ユーザーが削除 → 403／管理者が削除 → 204／メール重複で更新 → 409 |
 | `guards.e2e-spec.ts` | 有効なトークン → 通る／ヘッダーなし → 401／不正なトークン → 401／トークンは有効だがユーザー削除済み → 401／管理者 → 通る／一般ユーザー → 403 |
 | `errors.e2e-spec.ts` | 未定義ルート → 404 `Not Found.`／不正な JSON → 400・`message` だけ／エラーボディに `message`（と 422 の `errors`）以外のキーがない／ルールにないキーは捨てられる／想定外の例外 → 500 `Server Error`・詳細を含まない |
+| `database.e2e-spec.ts` | `db:migrate` で 4 テーブル・2 回目も変わらない／カラム（timestamps・SoftDeletes）／一意制約・外部キー／`db:rollback` で `refresh_tokens` だけ消え、再適用で戻る／`db:seed` 1 回・2 回で users 2・authors 3・books 5、シードの管理者でログインできる／`db:fresh` でシード直後に戻る（DB ファイルなしでも）／`JWT_SECRET` なしで起動が止まる・`JWT_SECRET` だけで 3000 番・`sqlite.db` で起動。一時ディレクトリの DB に対して npm script と `dist/main.js` を実際に起動する（1 回 2 秒ほどかかる） |
 
 #### Unit（`test/unit/`）
 
@@ -868,27 +877,28 @@ it('LoginRequest: password なし → エラー', async () => {
 })
 ```
 
-### Jest 設定（`package.json`）
+### Vitest 設定（`vitest.config.ts`）
 
-`nest new` が作る `src/**/*.spec.ts` 用と `test/jest-e2e.json` の 2 本立てをやめ、`test/` の下に Feature・Unit をまとめる。
+`nest new` が作る `src/**/*.spec.ts` 用（`vitest.config.ts`）と e2e 用（`vitest.config.e2e.ts`）の 2 本立てをやめ、`test/` の下に Feature・Unit をまとめる。
 
-```json
-"jest": {
-  "rootDir": ".",
-  "testRegex": "test/.*\\.(spec|e2e-spec)\\.ts$",
-  "moduleFileExtensions": ["js", "json", "ts"],
-  "transform": { "^.+\\.ts$": "ts-jest" },
-  "testEnvironment": "node",
-  "setupFiles": ["<rootDir>/test/setup-env.ts"]
-}
+```ts
+export default defineConfig({
+  resolve: { tsconfigPaths: true },
+  test: {
+    globals: true,
+    root: './',
+    include: ['test/**/*.{spec,e2e-spec}.ts'],
+    setupFiles: ['./test/setup-env.ts'],
+  },
+})
 ```
 
 | コマンド | 内容 |
 |---|---|
 | `npm test` | 全テスト |
-| `npm run test:feature` | `jest test/feature` |
-| `npm run test:unit` | `jest test/unit` |
-| `npm run test:watch` | `jest --watch` |
+| `npm run test:feature` | `vitest run test/feature` |
+| `npm run test:unit` | `vitest run test/unit` |
+| `npm run test:watch` | `vitest`（ファイルの変更を監視） |
 
 ---
 
@@ -913,23 +923,30 @@ cd nestjs-by-laravel-engineer
 
 npm i @nestjs/config @nestjs/jwt @nestjs/typeorm typeorm better-sqlite3 \
       class-validator class-transformer bcrypt
-npm i -D @types/bcrypt ts-node supertest @types/supertest
+npm i -D @types/bcrypt @types/better-sqlite3
+
+# npm 11 は install スクリプトを既定で止めるので、ネイティブビルドが要る 2 つだけ許可する
+npm approve-scripts better-sqlite3 bcrypt
+npm rebuild better-sqlite3 bcrypt
 ```
 
-`nest new` が作る `src/app.controller.ts` / `app.service.ts` / `app.controller.spec.ts` / `test/app.e2e-spec.ts` / `test/jest-e2e.json` は使わないので消す。
+`supertest` / `@types/supertest` は `nest new` の雛形に入っている。`nest new` が作る `src/app.controller.ts` / `app.service.ts` / `app.controller.spec.ts` / `test/app.e2e-spec.ts` / `vitest.config.e2e.ts` は使わないので消す。
 
 ### npm scripts（追加分）
 
 ```json
-"db:migrate":  "typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts",
-"db:rollback": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts",
-"db:seed":     "ts-node src/database/seeders/run.ts",
-"db:fresh":    "rm -f ${DATABASE_URL:-sqlite.db} && npm run db:migrate && npm run db:seed",
-"test:feature": "jest test/feature",
-"test:unit":    "jest test/unit"
+"db:migrate":   "nest build && typeorm migration:run -d dist/database/data-source.js",
+"db:rollback":  "nest build && typeorm migration:revert -d dist/database/data-source.js",
+"db:seed":      "nest build && node dist/database/seeders/run.js",
+"db:fresh":     "nest build && typeorm schema:drop -d dist/database/data-source.js && typeorm migration:run -d dist/database/data-source.js && node dist/database/seeders/run.js",
+"test":         "vitest run",
+"test:feature": "vitest run test/feature",
+"test:unit":    "vitest run test/unit"
 ```
 
-`data-source.ts` は Nest の外（CLI）から読まれるので、先頭で `import 'dotenv/config'` して `.env` を読む（`dotenv` は `@nestjs/config` と一緒に入る）。
+- CLI はビルド済みの `dist/` の js を動かす。Node は TypeScript のデコレータを直接実行できず、ESM で動く ts-node 系のローダーはデコレータのメタデータの扱いが不安定なため。本番と同じ js を動かすことにもなる
+- `db:fresh` は `migrate:fresh` と同じく、すべてのテーブルを消してからマイグレーションとシーダーを流す。DB ファイルの場所（`.env` の `DATABASE_URL`）をシェルで解決しなくて済む
+- `data-source.ts` は Nest の外（CLI）から読まれるので、先頭で `process.loadEnvFile('.env')`（Node 組み込み）して `.env` を読む
 
 ### 環境変数（`.env.example`）
 
@@ -975,7 +992,7 @@ README を起点に実装する（仕様が変わったら先に README を直�
 
 | # | ステップ | 完了の目安 |
 |---|---|---|
-| 0 | プロジェクト作成・依存追加・不要ファイル削除・Jest 設定 | `npm test` が「テストなし」で通る |
+| 0 | プロジェクト作成・依存追加・不要ファイル削除・Vitest 設定 | `npm test` が「テストなし」で通る |
 | 1 | `config/`・`DatabaseModule`・Entity 4 つ・マイグレーション 4 つ・`data-source.ts` | `npm run db:migrate` でテーブルができる |
 | 2 | シーダー | `npm run db:seed` を 2 回実行しても重複しない |
 | 3 | `bootstrap.ts`（prefix・ValidationPipe・Handler フィルタ・CORS）、`validation-exception.factory.ts` | factory の Unit テストが通る |

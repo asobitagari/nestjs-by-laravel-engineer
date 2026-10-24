@@ -11,7 +11,8 @@ context: |
   NestJS は DI コンテナを持つので、テーマは「Laravel の構成にどこまで寄せられるか」。
   ルートの README.md が仕様の原典。
   Stack: Node.js LTS / NestJS (Express) / class-validator / TypeORM / SQLite (better-sqlite3)
-         / @nestjs/jwt (HS256) / bcrypt / @nestjs/config / Jest + supertest
+         / @nestjs/jwt (HS256) / bcrypt / @nestjs/config / Vitest + supertest
+         / ESM（NestJS 12 の nest new の既定）/ oxlint
   Layers: http (controllers, requests, resources, guards, filters) → useCases / services
           → domain (外部ライブラリ非依存) ← infrastructure (TypeORM)
   エラーレスポンスは Laravel 形式（{ message } / 422 は { message, errors }）。

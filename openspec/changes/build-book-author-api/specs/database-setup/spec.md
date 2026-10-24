@@ -66,7 +66,7 @@
 - **THEN** `isAdmin` が `true` で返る
 
 ### Requirement: 作り直し
-システムは `npm run db:fresh` で DB ファイルを削除し、マイグレーションとシーダーを続けて実行しなければならない（SHALL）。
+システムは `npm run db:fresh` ですべてのテーブルを削除し、マイグレーションとシーダーを続けて実行しなければならない（SHALL）。
 
 #### Scenario: データを足した後の fresh
 - **WHEN** 著者を 1 件追加した後に `npm run db:fresh` を実行する

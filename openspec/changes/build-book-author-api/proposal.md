@@ -8,7 +8,7 @@ Laravel の設計（Controller・FormRequest・Action・Domain Service・Reposit
 
 ## What Changes
 
-- NestJS プロジェクトを新規作成する（依存追加、`nest new` の不要ファイル削除、Jest を `test/` 配下 1 本に統一）
+- NestJS プロジェクトを新規作成する（依存追加、`nest new` の不要ファイル削除、NestJS 12 の雛形の ESM・Vitest・oxlint を使い、テストの設定を `test/` 配下 1 本に統一）
 - SQLite のマイグレーション 4 本（authors / books / users / refresh_tokens）と、冪等なシーダーを追加する
 - `/api` 配下に認証・プロフィール・著者・書籍・ユーザーの REST エンドポイントを追加する
 - JWT アクセストークン（15 分）+ リフレッシュトークン（30 日・ローテーションなし）による認証と、DB の `is_admin` をリクエストごとに見る管理者認可を追加する
@@ -45,7 +45,7 @@ Laravel の設計（Controller・FormRequest・Action・Domain Service・Reposit
 
 - 新規ディレクトリ：`src/`（`http/`・`useCases/`・`services/`・`domain/`・`infrastructure/`・`shared/`・`modules/`・`config/`・`database/`）、`test/`（`feature/`・`unit/`）
 - 新規ファイル：`package.json`、`tsconfig*.json`、`nest-cli.json`、`.env.example`
-- 依存パッケージ：`@nestjs/*`、`@nestjs/config`、`@nestjs/jwt`、`@nestjs/typeorm`、`typeorm`、`better-sqlite3`、`class-validator`、`class-transformer`、`bcrypt`、開発用に `ts-node`、`supertest`、型定義。better-sqlite3・bcrypt はネイティブビルドのため WSL に `build-essential` / `python3` が必要
+- 依存パッケージ：`@nestjs/*`、`@nestjs/config`、`@nestjs/jwt`、`@nestjs/typeorm`、`typeorm`、`better-sqlite3`、`class-validator`、`class-transformer`、`bcrypt`、開発用に型定義（`supertest`・Vitest・oxlint は雛形に含まれる）。better-sqlite3・bcrypt はネイティブビルドのため WSL に `build-essential` / `python3` が必要で、npm 11 では `allowScripts` での許可も要る
 - DB スキーマ：新規に 4 テーブル（マイグレーション 4 本）。既存データはない
 - API の互換性：既存の API・クライアントはないので、互換性を壊す変更はない。レスポンスの形（キーは camelCase、`data` で包まない、削除・ログアウト・パスワード変更は 204、エラーは `{ message }`、422 は `{ message, errors }`）は、このプロジェクトの決定として spec に定める
-- README：Module の依存の解決方法（design D2）を `modules/` 節に、`test/feature/errors.e2e-spec.ts` をディレクトリ構成とテストケース一覧に反映済み。他の実装との比較を根拠にしていた記述は、このプロジェクトの決定と理由に書き換え済み
+- README：Module の依存の解決方法（design D2）を `modules/` 節に、`test/feature/errors.e2e-spec.ts` をディレクトリ構成とテストケース一覧に反映済み。他の実装との比較を根拠にしていた記述は、このプロジェクトの決定と理由に書き換え済み。ツールチェーン（design D12）に合わせて技術スタック・テスト・セットアップの節を修正済み
